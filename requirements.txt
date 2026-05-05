@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+anthropic
+openai
+pillow
+httpx
+python-multipart
+pydantic
