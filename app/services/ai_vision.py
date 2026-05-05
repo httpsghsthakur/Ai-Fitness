@@ -1,42 +1,40 @@
 import os
-import base64
+import google.generativeai as genai
 from typing import List, Dict
-import anthropic
-from openai import OpenAI
+from PIL import Image
+import io
+import json
+from .prompts import FOOD_ANALYSIS_PROMPT
 
-class AIVisionService:
+class GeminiVisionService:
     def __init__(self):
-        self.anthropic_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-        self.openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+        self.model = genai.GenerativeModel('gemini-1.5-flash')
 
     async def analyze_food_image(self, image_bytes: bytes, meal_type: str) -> Dict:
-        # For demonstration, we'll use a mocked prompt for GPT-4o Vision or Claude 3.5 Sonnet
-        # In a real app, you'd send the base64 image to the model.
-        
-        # This is a template of how the interaction would look:
-        # response = self.openai_client.chat.completions.create(
-        #     model="gpt-4o",
-        #     messages=[
-        #         {
-        #             "role": "user",
-        #             "content": [
-        #                 {"type": "text", "text": f"Analyze this {meal_type} and provide nutrition data in JSON format."},
-        #                 {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
-        #             ]
-        #         }
-        #     ],
-        #     response_format={"type": "json_object"}
-        # )
-        
-        # Mocking a high-quality AI response for now
-        return {
-            "food_items": [
-                {"name": "Paneer Tikka", "quantity": "150", "unit": "g", "calories": 320, "protein_g": 18, "carbs_g": 8, "fat_g": 24, "fiber_g": 2},
-                {"name": "Butter Naan", "quantity": "1", "unit": "pc", "calories": 260, "protein_g": 6, "carbs_g": 45, "fat_g": 8, "fiber_g": 3}
-            ],
-            "total_calories": 580,
-            "confidence": 0.92,
-            "alternatives": []
-        }
+        try:
+            image = Image.open(io.BytesIO(image_bytes))
+            
+            prompt = FOOD_ANALYSIS_PROMPT + f"\nMeal Type: {meal_type}"
+            
+            response = self.model.generate_content([prompt, image])
+            
+            # Extract JSON from the response text
+            text = response.text
+            # Simple cleanup in case Gemini adds markdown backticks
+            if "```json" in text:
+                text = text.split("```json")[1].split("```")[0]
+            elif "```" in text:
+                text = text.split("```")[1].split("```")[0]
+                
+            return json.loads(text)
+        except Exception as e:
+            print(f"Error in GeminiVisionService: {e}")
+            return {
+                "food_items": [],
+                "total_calories": 0,
+                "confidence": 0,
+                "alternatives": ["Error analyzing image"]
+            }
 
-vision_service = AIVisionService()
+vision_service = GeminiVisionService()

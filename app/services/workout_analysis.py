@@ -1,29 +1,32 @@
 import os
+import google.generativeai as genai
 from typing import List, Dict
-from openai import OpenAI
+import json
 from .prompts import WORKOUT_ANALYSIS_PROMPT
 
-class WorkoutAnalysisService:
+class GeminiWorkoutService:
     def __init__(self):
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+        self.model = genai.GenerativeModel('gemini-1.5-flash')
 
     async def analyze_workout(self, exercises: List[Dict], duration_min: int, goal: str) -> Dict:
         try:
             prompt = WORKOUT_ANALYSIS_PROMPT.format(
                 exercises=exercises,
                 goal=goal
-            )
+            ) + "\nReturn ONLY valid JSON."
             
-            response = self.client.chat.completions.create(
-                model="gpt-4o",
-                messages=[{"role": "user", "content": prompt}],
-                response_format={"type": "json_object"}
-            )
+            response = self.model.generate_content(prompt)
             
-            import json
-            return json.loads(response.choices[0].message.content)
+            text = response.text
+            if "```json" in text:
+                text = text.split("```json")[1].split("```")[0]
+            elif "```" in text:
+                text = text.split("```")[1].split("```")[0]
+                
+            return json.loads(text)
         except Exception as e:
-            print(f"Error calling WorkoutAnalysisService: {e}")
+            print(f"Error in GeminiWorkoutService: {e}")
             return {
                 "calories_burned": 0,
                 "muscle_groups": [],
@@ -33,4 +36,4 @@ class WorkoutAnalysisService:
                 "form_tips": []
             }
 
-workout_service = WorkoutAnalysisService()
+workout_service = GeminiWorkoutService()

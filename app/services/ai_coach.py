@@ -1,30 +1,28 @@
 import os
+import google.generativeai as genai
 from typing import List, Dict
-import anthropic
 from .prompts import COACH_SYSTEM_PROMPT
 
-class AICoachService:
+class GeminiCoachService:
     def __init__(self):
-        self.client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+        self.model = genai.GenerativeModel('gemini-1.5-pro')
 
     async def get_coach_reply(self, message: str, context: str, history: List[Dict]) -> str:
         try:
-            # Construct messages for Claude
-            messages = []
-            for msg in history:
-                messages.append({"role": msg["role"], "content": msg["content"]})
+            # Construct chat history for Gemini
+            chat = self.model.start_chat(history=[])
             
-            messages.append({"role": "user", "content": message})
-
-            response = self.client.messages.create(
-                model="claude-3-5-sonnet-20240620",
-                max_tokens=500,
-                system=COACH_SYSTEM_PROMPT.format(context=context),
-                messages=messages
-            )
-            return response.content[0].text
+            system_instruction = COACH_SYSTEM_PROMPT.format(context=context)
+            
+            # Since Gemini models can take system instructions in the constructor or as first message
+            # We'll prepend it to the message or use the system_instruction feature if available
+            full_prompt = f"SYSTEM INSTRUCTION: {system_instruction}\n\nUSER MESSAGE: {message}"
+            
+            response = chat.send_message(full_prompt)
+            return response.text
         except Exception as e:
-            print(f"Error calling AICoachService: {e}")
-            return "I'm having trouble connecting right now. Please try again later."
+            print(f"Error in GeminiCoachService: {e}")
+            return "I'm having a little trouble thinking. Can you try again?"
 
-coach_service = AICoachService()
+coach_service = GeminiCoachService()
