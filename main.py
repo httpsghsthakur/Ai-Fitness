@@ -7,6 +7,7 @@ from app.services.ai_coach import coach_service
 from app.services.workout_analysis import workout_service
 import os
 import json
+import google.generativeai as genai
 
 app = FastAPI(title="FitCore AI Backend")
 
@@ -30,6 +31,10 @@ class ChatRequest(BaseModel):
     message: str
     context: str
     history: List[dict]
+
+class VoiceLogRequest(BaseModel):
+    text: str
+    context: str
 
 class WorkoutAnalysisRequest(BaseModel):
     exercises: List[dict]
@@ -58,6 +63,32 @@ async def chat(request: ChatRequest):
             request.history
         )
         return {"reply": reply, "actions": []}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/parse-voice")
+async def parse_voice(request: VoiceLogRequest):
+    try:
+        prompt = f"""
+        Convert this natural language food description into a structured JSON log.
+        User Input: "{request.text}"
+        User Context: {request.context}
+        
+        Return ONLY valid JSON in this format:
+        {{
+          "food_items": [{{ "name": "...", "quantity": "...", "unit": "...", "calories": 0, "protein_g": 0, "carbs_g": 0, "fat_g": 0, "fiber_g": 0 }}],
+          "total_calories": 0
+        }}
+        """
+        # Using Gemini 1.5 Flash for speed
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(prompt)
+        text = response.text
+        if "```json" in text:
+            text = text.split("```json")[1].split("```")[0]
+        elif "```" in text:
+            text = text.split("```")[1].split("```")[0]
+        return json.loads(text)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
